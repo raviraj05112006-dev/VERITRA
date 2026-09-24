@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'camera_screen.dart';
 
 // ---------------------------------------------------------
 // OPTIONS
@@ -655,9 +656,13 @@ class _FieldTestCompanionScreenState
 
                       onPressed: _formCompleted
                           ? () {
-
-                        // Camera functionality
-                        // will be added here.
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const CameraScreen(),
+                          ),
+                        );
 
                       }
                           : null,
