@@ -73,14 +73,11 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               children: [
 
-                // NarcoX
-                const Text(
-                  'NarcoX',
-                  style: TextStyle(
-                    fontSize: 38,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF123B5D),
-                  ),
+                // NarcoX logo
+                Image(
+                  image: const AssetImage('assets/image/sih_logo.jpeg'),
+                  height: 150,
+                  fit: BoxFit.contain,
                 ),
 
                 const SizedBox(height: 8),
@@ -328,7 +325,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 30),
 
                 const Text(
-                  'NarcoX • Secure Evidence Management',
+                  'VERITRA • Secure Evidence Management',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey,

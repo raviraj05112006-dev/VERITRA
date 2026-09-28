@@ -2,24 +2,133 @@ import 'package:flutter/material.dart';
 import 'camera_screen.dart';
 
 // ---------------------------------------------------------
-// OPTIONS
-// Add the actual options here later.
+// PHYSICAL FEATURES
 // ---------------------------------------------------------
 
 final List<String> physicalFeatures = [
-  'Granular','Crystalline','Plant Material','Leafy / Flowering Material','Resinous','Sticky / Gum-Like','Soft Solid','Hard Solid','Brittle','Compressed / Pressed','Block / Chunk','Tablet / Pill','Capsule','Liquid','Viscous Liquid','Oil','Semi-Solid / Semi-Liquid','Syrup / Liquid preparation','Unknown',
+  'Granular',
+  'Crystalline',
+  'Plant Material',
+  'Leafy / Flowering Material',
+  'Resinous',
+  'Sticky / Gum-Like',
+  'Soft Solid',
+  'Hard Solid',
+  'Brittle',
+  'Compressed / Pressed',
+  'Block / Chunk',
+  'Tablet / Pill',
+  'Capsule',
+  'Liquid',
+  'Viscous Liquid',
+  'Oil',
+  'Semi-Solid / Semi-Liquid',
+  'Syrup / Liquid preparation',
+  'Unknown',
   'Others',
 ];
+
+// ---------------------------------------------------------
+// SURFACE / TEXTURE
+// ---------------------------------------------------------
 
 final List<String> surfaceTextureFeatures = [
-  'Fine','Coarse','Smooth','Rough','Fibrous','Granular','Crystalline','Resinous','Powedery','Flaky','Leafy','Irregular','Unknown',
+  'Fine',
+  'Coarse',
+  'Smooth',
+  'Rough',
+  'Fibrous',
+  'Granular',
+  'Crystalline',
+  'Resinous',
+  'Powedery',
+  'Flaky',
+  'Leafy',
+  'Irregular',
+  'Unknown',
   'Others',
 ];
 
+// ---------------------------------------------------------
+// STRUCTURE / APPEARANCE
+// ---------------------------------------------------------
+
 final List<String> structureAppearanceFeatures = [
-  'Homogenous','Heterogeneous','Transparent','Opaque','Shiny / Reflective','Dull / Matte','Visible crystals','Visible Particles','Visible Fibres','Irrgular Pieces','Unknown',
+  'Homogenous',
+  'Heterogeneous',
+  'Transparent',
+  'Opaque',
+  'Shiny / Reflective',
+  'Dull / Matte',
+  'Visible crystals',
+  'Visible Particles',
+  'Visible Fibres',
+  'Irrgular Pieces',
+  'Unknown',
   'Others',
 ];
+
+// ---------------------------------------------------------
+// SUSPECTED DRUGS AND CHEMICAL FLOW
+// ---------------------------------------------------------
+
+final Map<String, String> drugToFirstReagent = {
+  // TEST A
+  'Opium': 'A1',
+  'Morphine': 'A1',
+  'Codeine': 'A1',
+  'Heroin': 'A1',
+  'Amphetamines': 'A1',
+  'Mescaline': 'A1',
+
+  // TEST B
+  'Marijuana': 'B1',
+  'Hashish': 'B1',
+  'Hashish oil': 'B1',
+
+  // TEST E
+  'Cocaine': 'E1',
+  'Methaqualone': 'E1',
+};
+
+final Map<String, List<String>> drugListByTest = {
+  'A1': [
+    'Opium',
+    'Morphine',
+    'Codeine',
+    'Heroin',
+    'Amphetamines',
+    'Mescaline',
+  ],
+
+  'B1': [
+    'Marijuana',
+    'Hashish',
+    'Hashish oil',
+  ],
+
+  'E1': [
+    'Cocaine',
+    'Methaqualone',
+  ],
+};
+
+// Next reagent after the first chemical.
+final Map<String, String> secondReagentMap = {
+  'A1': 'A2',
+  'B1': 'B2',
+  'E1': 'E3',
+};
+
+// Third reagent where required.
+final Map<String, String> thirdReagentMap = {
+  'B1': 'B3',
+  'E1': 'E4',
+};
+
+// ---------------------------------------------------------
+// SCREEN
+// ---------------------------------------------------------
 
 class FieldTestCompanionScreen extends StatefulWidget {
   const FieldTestCompanionScreen({super.key});
@@ -33,11 +142,13 @@ class _FieldTestCompanionScreenState
     extends State<FieldTestCompanionScreen> {
 
   // ---------------------------------------------------------
-  // SELECTED OPTIONS
+  // SELECTED FEATURES
   // ---------------------------------------------------------
 
   List<String> _selectedPhysicalFeatures = [];
+
   List<String> _selectedSurfaceTextureFeatures = [];
+
   List<String> _selectedStructureAppearanceFeatures = [];
 
   // ---------------------------------------------------------
@@ -56,8 +167,17 @@ class _FieldTestCompanionScreenState
   final TextEditingController _moreDetailsController =
   TextEditingController();
 
-  final TextEditingController _suspicionController =
-  TextEditingController();
+  // ---------------------------------------------------------
+  // CHEMICAL TESTING STATE
+  // ---------------------------------------------------------
+
+  String? _selectedSuspectedDrug;
+
+  String? _selectedFirstReagent;
+
+  String? _selectedSecondReagent;
+
+  String? _selectedThirdReagent;
 
   // ---------------------------------------------------------
   // CHECK WHETHER REQUIRED FIELDS ARE COMPLETE
@@ -80,32 +200,39 @@ class _FieldTestCompanionScreenState
             (!_selectedStructureAppearanceFeatures.contains('Others') ||
                 _structureAppearanceOtherController.text.trim().isNotEmpty);
 
-    final suspicionCompleted =
-        _suspicionController.text.trim().isNotEmpty;
+    final chemicalCompleted =
+        _selectedSuspectedDrug != null &&
+            _selectedFirstReagent != null &&
+            _selectedSecondReagent != null &&
+            (_selectedFirstReagent == 'A1' ||
+                _selectedThirdReagent != null);
 
     return physicalCompleted &&
         surfaceTextureCompleted &&
         structureAppearanceCompleted &&
-        suspicionCompleted;
+        chemicalCompleted;
   }
 
   // ---------------------------------------------------------
-  // DISPOSE CONTROLLERS
+  // DISPOSE
   // ---------------------------------------------------------
 
   @override
   void dispose() {
+
     _physicalOtherController.dispose();
+
     _surfaceTextureOtherController.dispose();
+
     _structureAppearanceOtherController.dispose();
+
     _moreDetailsController.dispose();
-    _suspicionController.dispose();
 
     super.dispose();
   }
 
   // ---------------------------------------------------------
-  // MULTI-SELECT DROPDOWN
+  // MULTI-SELECT DIALOG
   // ---------------------------------------------------------
 
   Future<void> _showMultiSelectDialog({
@@ -131,23 +258,27 @@ class _FieldTestCompanionScreenState
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+
                   children: options.map((option) {
 
                     return CheckboxListTile(
                       title: Text(option),
 
-                      value: temporarySelection.contains(option),
+                      value:
+                      temporarySelection.contains(option),
 
                       onChanged: (checked) {
 
                         setDialogState(() {
 
                           if (checked == true) {
+
                             temporarySelection.add(option);
+
                           } else {
+
                             temporarySelection.remove(option);
                           }
-
                         });
                       },
 
@@ -172,7 +303,9 @@ class _FieldTestCompanionScreenState
                   onPressed: () {
 
                     onChanged(
-                      List<String>.from(temporarySelection),
+                      List<String>.from(
+                        temporarySelection,
+                      ),
                     );
 
                     Navigator.pop(context);
@@ -188,20 +321,7 @@ class _FieldTestCompanionScreenState
   }
 
   // ---------------------------------------------------------
-  // DISPLAY TEXT FOR SELECTED OPTIONS
-  // ---------------------------------------------------------
-
-  String _displaySelected(List<String> selected) {
-
-    if (selected.isEmpty) {
-      return 'Select features';
-    }
-
-    return selected.join(', ');
-  }
-
-  // ---------------------------------------------------------
-  // DROPDOWN STYLE BOX
+  // MULTI-SELECT FIELD
   // ---------------------------------------------------------
 
   Widget _multiSelectField({
@@ -209,37 +329,51 @@ class _FieldTestCompanionScreenState
     required List<String> selectedValues,
     required VoidCallback onTap,
   }) {
+
     return InkWell(
       onTap: onTap,
+
       borderRadius: BorderRadius.circular(12),
+
       child: InputDecorator(
         decoration: InputDecoration(
           filled: true,
+
           fillColor: Colors.white,
+
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
           ),
-          contentPadding: const EdgeInsets.symmetric(
+
+          contentPadding:
+          const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 17,
           ),
         ),
+
         child: Row(
           children: [
+
             Expanded(
               child: Text(
                 selectedValues.isEmpty
                     ? hint
                     : selectedValues.join(', '),
+
                 style: TextStyle(
                   fontSize: 15,
+
                   color: selectedValues.isEmpty
                       ? Colors.grey
                       : Colors.black87,
                 ),
+
                 maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+
+                overflow:
+                TextOverflow.ellipsis,
               ),
             ),
 
@@ -254,7 +388,133 @@ class _FieldTestCompanionScreenState
   }
 
   // ---------------------------------------------------------
-  // BUILD UI
+  // NORMAL DROPDOWN FIELD
+  // ---------------------------------------------------------
+
+  Widget _dropdownField({
+    required String hint,
+    required String? value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+  }) {
+
+    return Container(
+      width: double.infinity,
+
+      decoration: BoxDecoration(
+        color: Colors.white,
+
+        borderRadius:
+        BorderRadius.circular(12),
+      ),
+
+      child: DropdownButtonFormField<String>(
+        value: value,
+
+        isExpanded: true,
+
+        decoration: InputDecoration(
+          hintText: hint,
+
+          filled: true,
+
+          fillColor: Colors.white,
+
+          border: OutlineInputBorder(
+            borderRadius:
+            BorderRadius.circular(12),
+
+            borderSide:
+            BorderSide.none,
+          ),
+
+          contentPadding:
+          const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 4,
+          ),
+        ),
+
+        items: items.map((item) {
+
+          return DropdownMenuItem<String>(
+            value: item,
+
+            child: Text(
+              item,
+
+              overflow:
+              TextOverflow.ellipsis,
+            ),
+          );
+
+        }).toList(),
+
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------
+  // SUSPECTED DRUG SELECTION
+  // ---------------------------------------------------------
+
+  void _selectSuspectedDrug(String? drug) {
+
+    setState(() {
+
+      _selectedSuspectedDrug = drug;
+
+      _selectedFirstReagent =
+      drug == null
+          ? null
+          : drugToFirstReagent[drug];
+
+      _selectedSecondReagent = null;
+
+      _selectedThirdReagent = null;
+    });
+  }
+
+  // ---------------------------------------------------------
+  // FIRST REAGENT
+  // ---------------------------------------------------------
+
+  void _selectFirstReagent(String? reagent) {
+
+    setState(() {
+
+      _selectedFirstReagent = reagent;
+
+      _selectedSecondReagent =
+      reagent == null
+          ? null
+          : secondReagentMap[reagent];
+
+      _selectedThirdReagent = null;
+    });
+  }
+
+  // ---------------------------------------------------------
+  // SECOND REAGENT
+  // ---------------------------------------------------------
+
+  void _selectSecondReagent(String? reagent) {
+
+    setState(() {
+
+      _selectedSecondReagent = reagent;
+
+      if (reagent == null ||
+          _selectedFirstReagent == 'A1') {
+
+        _selectedThirdReagent = null;
+      }
+    });
+  }
+
+  // ---------------------------------------------------------
+  // BUILD
   // ---------------------------------------------------------
 
   @override
@@ -262,44 +522,61 @@ class _FieldTestCompanionScreenState
 
     return Scaffold(
 
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor:
+      const Color(0xFFF5F7FA),
 
       appBar: AppBar(
-        backgroundColor: const Color(0xFF123B5D),
-        foregroundColor: Colors.white,
+        backgroundColor:
+        const Color(0xFF123B5D),
+
+        foregroundColor:
+        Colors.white,
+
         elevation: 0,
 
         title: const Text(
           'FIELD TEST COMPANION',
+
           style: TextStyle(
             fontSize: 18,
-            fontWeight: FontWeight.bold,
+            fontWeight:
+            FontWeight.bold,
           ),
         ),
       ),
 
       body: SingleChildScrollView(
 
-        padding: const EdgeInsets.all(20),
+        padding:
+        const EdgeInsets.all(20),
 
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+          CrossAxisAlignment.start,
 
           children: [
 
+            // =================================================
+            // HEADER
+            // =================================================
+
             const Text(
               'Field Observation',
+
               style: TextStyle(
                 fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF123B5D),
+                fontWeight:
+                FontWeight.bold,
+                color:
+                Color(0xFF123B5D),
               ),
             ),
 
             const SizedBox(height: 6),
 
             const Text(
-              'Enter the observed features before capturing the drug image.',
+              'Enter the observed features and testing details before capturing the drug image.',
+
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey,
@@ -314,54 +591,78 @@ class _FieldTestCompanionScreenState
 
             const Text(
               'Physical Features',
+
               style: TextStyle(
                 fontSize: 16,
-                fontWeight: FontWeight.w600,
+                fontWeight:
+                FontWeight.w600,
               ),
             ),
 
             const SizedBox(height: 8),
 
             _multiSelectField(
-              hint: 'Select physical features',
-              selectedValues: _selectedPhysicalFeatures,
+              hint:
+              'Select physical features',
+
+              selectedValues:
+              _selectedPhysicalFeatures,
 
               onTap: () {
 
                 _showMultiSelectDialog(
-                  title: 'Physical Features',
-                  options: physicalFeatures,
-                  selectedValues: _selectedPhysicalFeatures,
+                  title:
+                  'Physical Features',
+
+                  options:
+                  physicalFeatures,
+
+                  selectedValues:
+                  _selectedPhysicalFeatures,
 
                   onChanged: (values) {
 
                     setState(() {
-                      _selectedPhysicalFeatures = values;
+
+                      _selectedPhysicalFeatures =
+                          values;
                     });
                   },
                 );
               },
             ),
 
-            if (_selectedPhysicalFeatures.contains('Others')) ...[
+            if (_selectedPhysicalFeatures
+                .contains('Others')) ...[
 
               const SizedBox(height: 12),
 
               TextField(
-                controller: _physicalOtherController,
+                controller:
+                _physicalOtherController,
 
                 onChanged: (_) {
                   setState(() {});
                 },
 
-                decoration: InputDecoration(
-                  hintText: 'Enter other physical feature',
-                  filled: true,
-                  fillColor: Colors.white,
+                decoration:
+                InputDecoration(
+                  hintText:
+                  'Enter other physical feature',
 
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+                  filled: true,
+
+                  fillColor:
+                  Colors.white,
+
+                  border:
+                  OutlineInputBorder(
+                    borderRadius:
+                    BorderRadius.circular(
+                        12),
+
+                    borderSide:
+                    BorderSide.none,
                   ),
                 ),
               ),
@@ -375,9 +676,11 @@ class _FieldTestCompanionScreenState
 
             const Text(
               'Visual Features',
+
               style: TextStyle(
                 fontSize: 16,
-                fontWeight: FontWeight.w600,
+                fontWeight:
+                FontWeight.w600,
               ),
             ),
 
@@ -389,31 +692,41 @@ class _FieldTestCompanionScreenState
 
             const Text(
               'Surface / Texture',
+
               style: TextStyle(
                 fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
+                fontWeight:
+                FontWeight.w600,
+                color:
+                Colors.black87,
               ),
             ),
 
             const SizedBox(height: 8),
 
             _multiSelectField(
-              hint: 'Select surface / texture',
+              hint:
+              'Select surface / texture',
+
               selectedValues:
               _selectedSurfaceTextureFeatures,
 
               onTap: () {
 
                 _showMultiSelectDialog(
-                  title: 'Surface / Texture',
-                  options: surfaceTextureFeatures,
+                  title:
+                  'Surface / Texture',
+
+                  options:
+                  surfaceTextureFeatures,
+
                   selectedValues:
                   _selectedSurfaceTextureFeatures,
 
                   onChanged: (values) {
 
                     setState(() {
+
                       _selectedSurfaceTextureFeatures =
                           values;
                     });
@@ -435,16 +748,24 @@ class _FieldTestCompanionScreenState
                   setState(() {});
                 },
 
-                decoration: InputDecoration(
+                decoration:
+                InputDecoration(
                   hintText:
                   'Enter other surface / texture',
-                  filled: true,
-                  fillColor: Colors.white,
 
-                  border: OutlineInputBorder(
+                  filled: true,
+
+                  fillColor:
+                  Colors.white,
+
+                  border:
+                  OutlineInputBorder(
                     borderRadius:
-                    BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+                    BorderRadius.circular(
+                        12),
+
+                    borderSide:
+                    BorderSide.none,
                   ),
                 ),
               ),
@@ -458,24 +779,31 @@ class _FieldTestCompanionScreenState
 
             const Text(
               'Structure / Appearance',
+
               style: TextStyle(
                 fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
+                fontWeight:
+                FontWeight.w600,
+                color:
+                Colors.black87,
               ),
             ),
 
             const SizedBox(height: 8),
 
             _multiSelectField(
-              hint: 'Select structure / appearance',
+              hint:
+              'Select structure / appearance',
+
               selectedValues:
               _selectedStructureAppearanceFeatures,
 
               onTap: () {
 
                 _showMultiSelectDialog(
-                  title: 'Structure / Appearance',
+                  title:
+                  'Structure / Appearance',
+
                   options:
                   structureAppearanceFeatures,
 
@@ -507,16 +835,24 @@ class _FieldTestCompanionScreenState
                   setState(() {});
                 },
 
-                decoration: InputDecoration(
+                decoration:
+                InputDecoration(
                   hintText:
                   'Enter other structure / appearance',
-                  filled: true,
-                  fillColor: Colors.white,
 
-                  border: OutlineInputBorder(
+                  filled: true,
+
+                  fillColor:
+                  Colors.white,
+
+                  border:
+                  OutlineInputBorder(
                     borderRadius:
-                    BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+                    BorderRadius.circular(
+                        12),
+
+                    borderSide:
+                    BorderSide.none,
                   ),
                 ),
               ),
@@ -530,30 +866,40 @@ class _FieldTestCompanionScreenState
 
             const Text(
               'More Details (Optional)',
+
               style: TextStyle(
                 fontSize: 16,
-                fontWeight: FontWeight.w600,
+                fontWeight:
+                FontWeight.w600,
               ),
             ),
 
             const SizedBox(height: 8),
 
             TextField(
-              controller: _moreDetailsController,
+              controller:
+              _moreDetailsController,
 
               maxLines: 4,
 
-              decoration: InputDecoration(
+              decoration:
+              InputDecoration(
                 hintText:
                 'Enter any additional details',
 
                 filled: true,
-                fillColor: Colors.white,
 
-                border: OutlineInputBorder(
+                fillColor:
+                Colors.white,
+
+                border:
+                OutlineInputBorder(
                   borderRadius:
-                  BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+                  BorderRadius.circular(
+                      12),
+
+                  borderSide:
+                  BorderSide.none,
                 ),
               ),
             ),
@@ -561,42 +907,190 @@ class _FieldTestCompanionScreenState
             const SizedBox(height: 28),
 
             // =================================================
-            // OFFICER'S SUSPICION
+            // CHEMICAL TESTING
             // =================================================
 
             const Text(
-              'Officer\'s Suspicion',
+              'Chemical Testing',
+
               style: TextStyle(
                 fontSize: 16,
-                fontWeight: FontWeight.w600,
+                fontWeight:
+                FontWeight.w600,
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
+            const Text(
+              'Select the suspected drug and follow the corresponding chemical testing sequence.',
+
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // -------------------------------------------------
+            // SUSPECTED DRUG
+            // -------------------------------------------------
+
+            const Text(
+              'Suspected Drug on Test',
+
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight:
+                FontWeight.w600,
+                color:
+                Colors.black87,
               ),
             ),
 
             const SizedBox(height: 8),
 
-            TextField(
-              controller: _suspicionController,
+            _dropdownField(
+              hint:
+              'Select suspected drug',
 
-              onChanged: (_) {
-                setState(() {});
-              },
+              value:
+              _selectedSuspectedDrug,
 
-              maxLines: 4,
+              items:
+              drugToFirstReagent.keys.toList(),
 
-              decoration: InputDecoration(
-                hintText:
-                'What is your suspicion?',
+              onChanged:
+              _selectSuspectedDrug,
+            ),
 
-                filled: true,
-                fillColor: Colors.white,
+            // -------------------------------------------------
+            // FIRST CHEMICAL
+            // -------------------------------------------------
 
-                border: OutlineInputBorder(
-                  borderRadius:
-                  BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+            if (_selectedSuspectedDrug != null) ...[
+
+              const SizedBox(height: 18),
+
+              const Text(
+                '1st Chemical Used',
+
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight:
+                  FontWeight.w600,
+                  color:
+                  Colors.black87,
                 ),
               ),
-            ),
+
+              const SizedBox(height: 8),
+
+              _dropdownField(
+                hint:
+                'Select first reagent',
+
+                value:
+                _selectedFirstReagent,
+
+                items: [
+                  drugToFirstReagent[
+                  _selectedSuspectedDrug]!,
+                ],
+
+                onChanged:
+                _selectFirstReagent,
+              ),
+            ],
+
+            // -------------------------------------------------
+            // SECOND CHEMICAL
+            // -------------------------------------------------
+
+            if (_selectedFirstReagent != null) ...[
+
+              const SizedBox(height: 18),
+
+              const Text(
+                '2nd Chemical Used',
+
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight:
+                  FontWeight.w600,
+                  color:
+                  Colors.black87,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              _dropdownField(
+                hint:
+                'Select second reagent',
+
+                value:
+                _selectedSecondReagent,
+
+                items: [
+                  secondReagentMap[
+                  _selectedFirstReagent]!,
+                ],
+
+                onChanged:
+                _selectSecondReagent,
+              ),
+            ],
+
+            // -------------------------------------------------
+            // THIRD CHEMICAL
+            // -------------------------------------------------
+
+            if (_selectedFirstReagent == 'B1' ||
+                _selectedFirstReagent == 'E1') ...[
+
+              if (_selectedSecondReagent != null) ...[
+
+                const SizedBox(height: 18),
+
+                const Text(
+                  '3rd Chemical Used',
+
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight:
+                    FontWeight.w600,
+                    color:
+                    Colors.black87,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                _dropdownField(
+                  hint:
+                  'Select third reagent',
+
+                  value:
+                  _selectedThirdReagent,
+
+                  items: [
+                    thirdReagentMap[
+                    _selectedFirstReagent]!,
+                  ],
+
+                  onChanged: (value) {
+
+                    setState(() {
+
+                      _selectedThirdReagent =
+                          value;
+                    });
+                  },
+                ),
+              ],
+            ],
 
             const SizedBox(height: 30),
 
@@ -607,13 +1101,17 @@ class _FieldTestCompanionScreenState
             Container(
               width: double.infinity,
 
-              padding: const EdgeInsets.all(20),
+              padding:
+              const EdgeInsets.all(20),
 
-              decoration: BoxDecoration(
-                color: Colors.white,
+              decoration:
+              BoxDecoration(
+                color:
+                Colors.white,
 
                 borderRadius:
-                BorderRadius.circular(15),
+                BorderRadius.circular(
+                    15),
               ),
 
               child: Column(
@@ -621,10 +1119,12 @@ class _FieldTestCompanionScreenState
 
                   Icon(
                     Icons.camera_alt,
+
                     size: 45,
 
                     color: _formCompleted
-                        ? const Color(0xFF123B5D)
+                        ? const Color(
+                        0xFF123B5D)
                         : Colors.grey,
                   ),
 
@@ -635,14 +1135,18 @@ class _FieldTestCompanionScreenState
                         ? 'Camera Ready'
                         : 'Complete the required fields to activate camera',
 
-                    textAlign: TextAlign.center,
+                    textAlign:
+                    TextAlign.center,
 
                     style: TextStyle(
                       fontSize: 15,
-                      fontWeight: FontWeight.w600,
+
+                      fontWeight:
+                      FontWeight.w600,
 
                       color: _formCompleted
-                          ? const Color(0xFF123B5D)
+                          ? const Color(
+                          0xFF123B5D)
                           : Colors.grey,
                     ),
                   ),
@@ -652,46 +1156,57 @@ class _FieldTestCompanionScreenState
                   SizedBox(
                     width: double.infinity,
 
-                    child: ElevatedButton.icon(
+                    child:
+                    ElevatedButton.icon(
 
-                      onPressed: _formCompleted
+                      onPressed:
+                      _formCompleted
                           ? () {
+
                         Navigator.push(
                           context,
+
                           MaterialPageRoute(
-                            builder: (context) =>
-                                const CameraScreen(),
+                            builder:
+                                (context) =>
+                            const CameraScreen(),
                           ),
                         );
 
                       }
                           : null,
 
-                      icon: const Icon(
+                      icon:
+                      const Icon(
                         Icons.camera_alt,
                       ),
 
-                      label: const Text(
+                      label:
+                      const Text(
                         'CAPTURE DRUG IMAGE',
                       ),
 
-                      style: ElevatedButton.styleFrom(
+                      style:
+                      ElevatedButton.styleFrom(
 
                         backgroundColor:
-                        const Color(0xFF123B5D),
+                        const Color(
+                            0xFF123B5D),
 
                         foregroundColor:
                         Colors.white,
 
                         padding:
-                        const EdgeInsets.symmetric(
+                        const EdgeInsets
+                            .symmetric(
                           vertical: 15,
                         ),
 
                         shape:
                         RoundedRectangleBorder(
                           borderRadius:
-                          BorderRadius.circular(10),
+                          BorderRadius
+                              .circular(10),
                         ),
                       ),
                     ),
