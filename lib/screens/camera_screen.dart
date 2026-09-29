@@ -4,27 +4,31 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 
-import '../models/detection.dart';
-import '../services/ai_service.dart';
+import '../services/cv_drug_test_service.dart';
 
 class CameraScreen extends StatefulWidget {
-  const CameraScreen({super.key});
+  const CameraScreen({
+    super.key,
+  });
 
   @override
-  State<CameraScreen> createState() => _CameraScreenState();
+  State<CameraScreen> createState() =>
+      _CameraScreenState();
 }
 
-class _CameraScreenState extends State<CameraScreen> {
+class _CameraScreenState
+    extends State<CameraScreen> {
   CameraController? _controller;
 
-  final AIService _aiService = AIService();
+  final CvDrugTestService _cvService =
+  CvDrugTestService();
 
   bool _cameraReady = false;
   bool _analyzing = false;
 
   XFile? _photo;
 
-  List<Detection> _detections = [];
+  CvDrugTestResult? _result;
 
   int _imageWidth = 1;
   int _imageHeight = 1;
@@ -37,16 +41,21 @@ class _CameraScreenState extends State<CameraScreen> {
 
   Future<void> _initializeCamera() async {
     try {
-      final cameras = await availableCameras();
+      final cameras =
+      await availableCameras();
 
       if (cameras.isEmpty) {
-        throw Exception('No camera available.');
+        throw Exception(
+          'No camera available.',
+        );
       }
 
-      CameraDescription selectedCamera = cameras.first;
+      CameraDescription selectedCamera =
+          cameras.first;
 
       for (final camera in cameras) {
-        if (camera.lensDirection == CameraLensDirection.back) {
+        if (camera.lensDirection ==
+            CameraLensDirection.back) {
           selectedCamera = camera;
           break;
         }
@@ -56,6 +65,8 @@ class _CameraScreenState extends State<CameraScreen> {
         selectedCamera,
         ResolutionPreset.high,
         enableAudio: false,
+        imageFormatGroup:
+        ImageFormatGroup.jpeg,
       );
 
       await _controller!.initialize();
@@ -68,9 +79,11 @@ class _CameraScreenState extends State<CameraScreen> {
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
-          content: Text('Camera error: $e'),
+          content:
+          Text('Camera error: $e'),
         ),
       );
     }
@@ -84,34 +97,63 @@ class _CameraScreenState extends State<CameraScreen> {
     }
 
     try {
-      final photo = await _controller!.takePicture();
+      setState(() {
+        _analyzing = true;
+      });
 
-      final bytes = await File(photo.path).readAsBytes();
-      final decodedImage = img.decodeImage(bytes);
+      final photo =
+      await _controller!.takePicture();
 
-      if (decodedImage == null) {
-        throw Exception('Could not read captured image.');
+      final bytes =
+      await File(photo.path)
+          .readAsBytes();
+
+      final decoded =
+      img.decodeImage(bytes);
+
+      if (decoded == null) {
+        throw Exception(
+          'Could not decode captured image.',
+        );
       }
 
       if (!mounted) return;
 
       setState(() {
         _photo = photo;
-        _imageWidth = decodedImage.width;
-        _imageHeight = decodedImage.height;
-        _analyzing = true;
-        _detections = [];
+        _imageWidth = decoded.width;
+        _imageHeight = decoded.height;
+        _result = null;
       });
 
       await _controller!.pausePreview();
 
-      final results =
-      await _aiService.analyzeImage(photo.path);
+      /*
+       * THIS IS NOW THE IMPORTANT PART.
+       *
+       * Camera image
+       *       ↓
+       * CvDrugTestService
+       *       ↓
+       * DartCV
+       *       ↓
+       * ArUco
+       *       ↓
+       * Perspective correction
+       *       ↓
+       * LAB
+       *       ↓
+       * Result
+       */
+      final result =
+      await _cvService.analyzeImage(
+        photo.path,
+      );
 
       if (!mounted) return;
 
       setState(() {
-        _detections = results;
+        _result = result;
         _analyzing = false;
       });
     } catch (e) {
@@ -119,22 +161,29 @@ class _CameraScreenState extends State<CameraScreen> {
 
       setState(() {
         _analyzing = false;
-      });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'AI analysis failed:\n$e',
-          ),
-        ),
-      );
+        _result =
+            CvDrugTestResult(
+              status: 'INCONCLUSIVE',
+              message:
+              'Camera/CV processing failed: $e',
+              suspectedDrug: null,
+              labL: 0,
+              labA: 0,
+              labB: 0,
+              distance: 999,
+              confidence: 0,
+              qualityPassed: false,
+              cardDetected: false,
+            );
+      });
     }
   }
 
   Future<void> _retake() async {
     setState(() {
       _photo = null;
-      _detections = [];
+      _result = null;
       _analyzing = false;
     });
 
@@ -150,17 +199,22 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+      BuildContext context,
+      ) {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Capture Drug Image'),
+        title: const Text(
+          'NarcoX • Guided Capture',
+        ),
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
       ),
       body: !_cameraReady
           ? const Center(
-        child: CircularProgressIndicator(),
+        child:
+        CircularProgressIndicator(),
       )
           : _photo == null
           ? _cameraView()
@@ -168,11 +222,89 @@ class _CameraScreenState extends State<CameraScreen> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // CAMERA
+  // ---------------------------------------------------------------------------
+
   Widget _cameraView() {
     return Stack(
       children: [
         Positioned.fill(
-          child: CameraPreview(_controller!),
+          child: CameraPreview(
+            _controller!,
+          ),
+        ),
+
+        /*
+         * Capture guidance.
+         */
+        Positioned(
+          top: 25,
+          left: 20,
+          right: 20,
+          child: Container(
+            padding:
+            const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color:
+              Colors.black.withOpacity(
+                0.65,
+              ),
+              borderRadius:
+              BorderRadius.circular(12),
+            ),
+            child: const Column(
+              children: [
+                Text(
+                  'PLACE REFERENCE CARD IN FRAME',
+                  textAlign:
+                  TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight:
+                    FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 5),
+                Text(
+                  'Keep all 4 corner markers visible',
+                  textAlign:
+                  TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        /*
+         * Centre guide.
+         */
+        Center(
+          child: Container(
+            width:
+            MediaQuery.of(context)
+                .size
+                .width *
+                0.78,
+            height:
+            MediaQuery.of(context)
+                .size
+                .height *
+                0.58,
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: Colors.white,
+                width: 2,
+              ),
+              borderRadius:
+              BorderRadius.circular(12),
+            ),
+          ),
         ),
 
         Positioned(
@@ -183,9 +315,10 @@ class _CameraScreenState extends State<CameraScreen> {
             child: GestureDetector(
               onTap: _capture,
               child: Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
+                width: 82,
+                height: 82,
+                decoration:
+                BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white,
                   border: Border.all(
@@ -206,24 +339,25 @@ class _CameraScreenState extends State<CameraScreen> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // RESULT
+  // ---------------------------------------------------------------------------
+
   Widget _resultView() {
     return Column(
       children: [
         Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return _buildImageWithBoxes(
-                constraints.maxWidth,
-                constraints.maxHeight,
-              );
-            },
+          child: Image.file(
+            File(_photo!.path),
+            fit: BoxFit.contain,
           ),
         ),
 
         _resultPanel(),
 
         Padding(
-          padding: const EdgeInsets.fromLTRB(
+          padding:
+          const EdgeInsets.fromLTRB(
             16,
             8,
             16,
@@ -231,10 +365,18 @@ class _CameraScreenState extends State<CameraScreen> {
           ),
           child: SizedBox(
             width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _analyzing ? null : _retake,
-              icon: const Icon(Icons.camera_alt),
-              label: const Text('RETAKE PHOTO'),
+            child:
+            ElevatedButton.icon(
+              onPressed:
+              _analyzing
+                  ? null
+                  : _retake,
+              icon: const Icon(
+                Icons.camera_alt,
+              ),
+              label: const Text(
+                'RETAKE PHOTO',
+              ),
             ),
           ),
         ),
@@ -242,248 +384,241 @@ class _CameraScreenState extends State<CameraScreen> {
     );
   }
 
-  Widget _buildImageWithBoxes(
-      double screenWidth,
-      double screenHeight,
-      ) {
-    final imageAspectRatio =
-        _imageWidth / _imageHeight;
-
-    final screenAspectRatio =
-        screenWidth / screenHeight;
-
-    double displayedWidth;
-    double displayedHeight;
-    double offsetX;
-    double offsetY;
-
-    if (imageAspectRatio > screenAspectRatio) {
-      // Image is wider than available area.
-      displayedWidth = screenWidth;
-      displayedHeight =
-          screenWidth / imageAspectRatio;
-
-      offsetX = 0;
-      offsetY =
-          (screenHeight - displayedHeight) / 2;
-    } else {
-      // Image is taller than available area.
-      displayedHeight = screenHeight;
-      displayedWidth =
-          screenHeight * imageAspectRatio;
-
-      offsetX =
-          (screenWidth - displayedWidth) / 2;
-      offsetY = 0;
-    }
-
-    return Stack(
-      children: [
-        Positioned(
-          left: offsetX,
-          top: offsetY,
-          width: displayedWidth,
-          height: displayedHeight,
-          child: Image.file(
-            File(_photo!.path),
-            fit: BoxFit.fill,
-          ),
-        ),
-
-        ..._detections.map(
-              (detection) {
-            final left =
-                offsetX +
-                    (detection.x1 / _imageWidth) *
-                        displayedWidth;
-
-            final top =
-                offsetY +
-                    (detection.y1 / _imageHeight) *
-                        displayedHeight;
-
-            final width =
-                ((detection.x2 - detection.x1) /
-                    _imageWidth) *
-                    displayedWidth;
-
-            final height =
-                ((detection.y2 - detection.y1) /
-                    _imageHeight) *
-                    displayedHeight;
-
-            return Positioned(
-              left: left,
-              top: top,
-              width: width,
-              height: height,
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Colors.red,
-                    width: 3,
-                  ),
-                ),
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: Container(
-                    padding:
-                    const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 3,
-                    ),
-                    color: Colors.red,
-                    child: Text(
-                      '${detection.className} '
-                          '${(detection.confidence * 100).toStringAsFixed(1)}%',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-
-        if (_analyzing)
-          Positioned.fill(
-            child: Container(
-              color: Colors.black54,
-              child: const Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(
-                      color: Colors.white,
-                    ),
-                    SizedBox(height: 15),
-                    Text(
-                      'Analyzing image...',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
+  // ---------------------------------------------------------------------------
+  // RESULT PANEL
+  // ---------------------------------------------------------------------------
 
   Widget _resultPanel() {
     if (_analyzing) {
-      return const SizedBox(
-        height: 110,
-        child: Center(
-          child: Text(
-            'AI analysis in progress...',
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      );
-    }
-
-    if (_detections.isEmpty) {
       return Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(16),
+        padding:
+        const EdgeInsets.all(20),
         color: Colors.white,
         child: const Column(
-          crossAxisAlignment:
-          CrossAxisAlignment.start,
           children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 12),
             Text(
-              'NO DETECTION',
+              'ANALYZING IMAGE...',
               style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+                fontSize: 17,
+                fontWeight:
+                FontWeight.bold,
               ),
             ),
             SizedBox(height: 5),
             Text(
-              'No object exceeded the current '
-                  'AI confidence threshold.',
+              'Detecting reference card and analysing colour',
+              textAlign:
+              TextAlign.center,
             ),
           ],
         ),
       );
     }
 
-    final best = _detections.first;
+    final result = _result;
+
+    if (result == null) {
+      return const SizedBox();
+    }
+
+    final Color statusColor;
+
+    switch (result.status) {
+      case 'POSITIVE':
+        statusColor = Colors.green;
+        break;
+
+      case 'NEGATIVE':
+        statusColor = Colors.red;
+        break;
+
+      default:
+        statusColor = Colors.orange;
+    }
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding:
+      const EdgeInsets.all(16),
       color: Colors.white,
       child: Column(
         crossAxisAlignment:
         CrossAxisAlignment.start,
         children: [
           const Text(
-            'AI VISUAL DETECTION',
+            'NARCOX CV ANALYSIS',
             style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
+              fontSize: 12,
+              fontWeight:
+              FontWeight.bold,
               color: Colors.grey,
             ),
           ),
+
+          const SizedBox(height: 7),
+
+          Row(
+            children: [
+              Container(
+                padding:
+                const EdgeInsets
+                    .symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
+                decoration:
+                BoxDecoration(
+                  color: statusColor,
+                  borderRadius:
+                  BorderRadius.circular(
+                    8,
+                  ),
+                ),
+                child: Text(
+                  result.status,
+                  style:
+                  const TextStyle(
+                    color: Colors.white,
+                    fontWeight:
+                    FontWeight.bold,
+                    fontSize: 17,
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              if (result.cardDetected)
+                const Text(
+                  'CARD DETECTED',
+                  style: TextStyle(
+                    color: Colors.green,
+                    fontWeight:
+                    FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                )
+              else
+                const Text(
+                  'CARD NOT DETECTED',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight:
+                    FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          if (result.suspectedDrug != null)
+            Text(
+              result.suspectedDrug!,
+              style: const TextStyle(
+                fontSize: 23,
+                fontWeight:
+                FontWeight.bold,
+              ),
+            ),
 
           const SizedBox(height: 5),
 
           Text(
-            best.className,
+            result.message,
             style: const TextStyle(
-              fontSize: 25,
-              fontWeight: FontWeight.bold,
+              fontSize: 13,
             ),
           ),
 
-          const SizedBox(height: 4),
+          const SizedBox(height: 10),
 
-          Text(
-            'Confidence: '
-                '${(best.confidence * 100).toStringAsFixed(1)}%',
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-
-          if (_detections.length > 1) ...[
-            const SizedBox(height: 8),
-
-            Text(
-              '${_detections.length} detections found',
-              style: const TextStyle(
-                fontSize: 13,
-                color: Colors.grey,
+          Row(
+            children: [
+              Expanded(
+                child: _metric(
+                  'CONFIDENCE',
+                  '${result.confidence}%',
+                ),
               ),
-            ),
-          ],
+              Expanded(
+                child: _metric(
+                  'LAB Δ',
+                  result.distance
+                      .toStringAsFixed(2),
+                ),
+              ),
+              Expanded(
+                child: _metric(
+                  'QUALITY',
+                  result.qualityPassed
+                      ? 'PASS'
+                      : 'FAIL',
+                ),
+              ),
+            ],
+          ),
 
           const SizedBox(height: 8),
 
-          const Text(
-            'Presumptive AI visual detection — '
-                'laboratory confirmation required.',
-            style: TextStyle(
-              fontSize: 12,
+          Text(
+            'LAB: '
+                'L ${result.labL.toStringAsFixed(1)}   '
+                'a ${result.labA.toStringAsFixed(1)}   '
+                'b ${result.labB.toStringAsFixed(1)}',
+            style: const TextStyle(
+              fontSize: 11,
               color: Colors.grey,
+            ),
+          ),
+
+          const SizedBox(height: 7),
+
+          const Text(
+            'Presumptive field result — laboratory confirmation required.',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey,
+              fontStyle:
+              FontStyle.italic,
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _metric(
+      String title,
+      String value,
+      ) {
+    return Column(
+      crossAxisAlignment:
+      CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 10,
+            color: Colors.grey,
+            fontWeight:
+            FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight:
+            FontWeight.bold,
+          ),
+        ),
+      ],
     );
   }
 }

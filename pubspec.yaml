@@ -39,6 +39,8 @@ dependencies:
   flutter_onnxruntime: ^1.8.5
   camera: ^0.12.1
   image: ^4.10.1
+  opencv_dart: ^2.2.2
+  dartcv4: 2.2.2
 
 dev_dependencies:
   flutter_test:
@@ -65,6 +67,16 @@ flutter:
   assets:
     - assets/models/best.onnx
     - assets/image/sih_logo.jpeg
+
+hooks:
+  user_defines:
+    dartcv4:
+      include_modules:
+        - imgcodecs
+        - imgproc
+        - calib3d
+        - aruco
+        - quality
 
   # To add assets to your application, add an assets section, like this:
   # assets:
