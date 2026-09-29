@@ -131,7 +131,22 @@ final Map<String, String> thirdReagentMap = {
 // ---------------------------------------------------------
 
 class FieldTestCompanionScreen extends StatefulWidget {
-  const FieldTestCompanionScreen({super.key});
+  final String? testId;
+  final String? testKit;
+  final double? latitude;
+  final double? longitude;
+  final double? gpsAccuracy;
+  final DateTime? testDateTime;
+
+  const FieldTestCompanionScreen({
+    super.key,
+    this.testId,
+    this.testKit,
+    this.latitude,
+    this.longitude,
+    this.gpsAccuracy,
+    this.testDateTime,
+  });
 
   @override
   State<FieldTestCompanionScreen> createState() =>
@@ -1165,11 +1180,24 @@ class _FieldTestCompanionScreenState
 
                         Navigator.push(
                           context,
-
                           MaterialPageRoute(
-                            builder:
-                                (context) =>
-                            const CameraScreen(),
+                            builder: (context) => CameraScreen(
+                              testId: widget.testId,
+                              testKit: widget.testKit,
+                              latitude: widget.latitude,
+                              longitude: widget.longitude,
+                              gpsAccuracy: widget.gpsAccuracy,
+                              testDateTime: widget.testDateTime,
+                              suspectedSubstance: _selectedSuspectedDrug,
+                              reagents: [
+                                if (_selectedFirstReagent != null)
+                                  _selectedFirstReagent!,
+                                if (_selectedSecondReagent != null)
+                                  _selectedSecondReagent!,
+                                if (_selectedThirdReagent != null)
+                                  _selectedThirdReagent!,
+                              ],
+                            ),
                           ),
                         );
 

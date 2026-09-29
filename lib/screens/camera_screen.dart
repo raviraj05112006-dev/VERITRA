@@ -4,34 +4,52 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 
+import '../models/test_report.dart';
 import '../services/cv_drug_test_service.dart';
+import 'report_screen.dart';
 
 class CameraScreen extends StatefulWidget {
+  final String? testId;
+  final String? operatorId;
+  final String? testKit;
+  final String? suspectedSubstance;
+  final List<String>? reagents;
+
+  final double? latitude;
+  final double? longitude;
+  final double? gpsAccuracy;
+
+  final DateTime? testDateTime;
+
   const CameraScreen({
     super.key,
+    this.testId,
+    this.operatorId,
+    this.testKit,
+    this.suspectedSubstance,
+    this.reagents,
+    this.latitude,
+    this.longitude,
+    this.gpsAccuracy,
+    this.testDateTime,
   });
 
   @override
-  State<CameraScreen> createState() =>
-      _CameraScreenState();
+  State<CameraScreen> createState() => _CameraScreenState();
 }
 
-class _CameraScreenState
-    extends State<CameraScreen> {
+class _CameraScreenState extends State<CameraScreen> {
   CameraController? _controller;
 
-  final CvDrugTestService _cvService =
-  CvDrugTestService();
+  final CvDrugTestService _cvService = CvDrugTestService();
 
   bool _cameraReady = false;
   bool _analyzing = false;
 
   XFile? _photo;
-
   CvDrugTestResult? _result;
 
-  int _imageWidth = 1;
-  int _imageHeight = 1;
+  String? _reportId;
 
   @override
   void initState() {
@@ -41,21 +59,16 @@ class _CameraScreenState
 
   Future<void> _initializeCamera() async {
     try {
-      final cameras =
-      await availableCameras();
+      final cameras = await availableCameras();
 
       if (cameras.isEmpty) {
-        throw Exception(
-          'No camera available.',
-        );
+        throw Exception('No camera available.');
       }
 
-      CameraDescription selectedCamera =
-          cameras.first;
+      CameraDescription selectedCamera = cameras.first;
 
       for (final camera in cameras) {
-        if (camera.lensDirection ==
-            CameraLensDirection.back) {
+        if (camera.lensDirection == CameraLensDirection.back) {
           selectedCamera = camera;
           break;
         }
@@ -65,8 +78,7 @@ class _CameraScreenState
         selectedCamera,
         ResolutionPreset.high,
         enableAudio: false,
-        imageFormatGroup:
-        ImageFormatGroup.jpeg,
+        imageFormatGroup: ImageFormatGroup.jpeg,
       );
 
       await _controller!.initialize();
@@ -79,11 +91,9 @@ class _CameraScreenState
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content:
-          Text('Camera error: $e'),
+          content: Text('Camera error: $e'),
         ),
       );
     }
@@ -101,15 +111,11 @@ class _CameraScreenState
         _analyzing = true;
       });
 
-      final photo =
-      await _controller!.takePicture();
+      final photo = await _controller!.takePicture();
 
-      final bytes =
-      await File(photo.path)
-          .readAsBytes();
+      final bytes = await File(photo.path).readAsBytes();
 
-      final decoded =
-      img.decodeImage(bytes);
+      final decoded = img.decodeImage(bytes);
 
       if (decoded == null) {
         throw Exception(
@@ -121,32 +127,27 @@ class _CameraScreenState
 
       setState(() {
         _photo = photo;
-        _imageWidth = decoded.width;
-        _imageHeight = decoded.height;
         _result = null;
+        _reportId = null;
       });
 
       await _controller!.pausePreview();
 
       /*
-       * THIS IS NOW THE IMPORTANT PART.
-       *
-       * Camera image
-       *       ↓
-       * CvDrugTestService
-       *       ↓
-       * DartCV
-       *       ↓
-       * ArUco
-       *       ↓
-       * Perspective correction
-       *       ↓
-       * LAB
-       *       ↓
-       * Result
+       * CAMERA
+       *   ↓
+       * CV SERVICE
+       *   ↓
+       * ARUCO CARD DETECTION
+       *   ↓
+       * PERSPECTIVE CORRECTION
+       *   ↓
+       * COLOUR / LAB ANALYSIS
+       *   ↓
+       * RESULT
        */
-      final result =
-      await _cvService.analyzeImage(
+
+      final result = await _cvService.analyzeImage(
         photo.path,
       );
 
@@ -155,6 +156,9 @@ class _CameraScreenState
       setState(() {
         _result = result;
         _analyzing = false;
+
+        _reportId =
+        'RPT-${DateTime.now().millisecondsSinceEpoch}';
       });
     } catch (e) {
       if (!mounted) return;
@@ -162,20 +166,18 @@ class _CameraScreenState
       setState(() {
         _analyzing = false;
 
-        _result =
-            CvDrugTestResult(
-              status: 'INCONCLUSIVE',
-              message:
-              'Camera/CV processing failed: $e',
-              suspectedDrug: null,
-              labL: 0,
-              labA: 0,
-              labB: 0,
-              distance: 999,
-              confidence: 0,
-              qualityPassed: false,
-              cardDetected: false,
-            );
+        _result = CvDrugTestResult(
+          status: 'INCONCLUSIVE',
+          message: 'Camera/CV processing failed: $e',
+          suspectedDrug: null,
+          labL: 0,
+          labA: 0,
+          labB: 0,
+          distance: 999,
+          confidence: 0,
+          qualityPassed: false,
+          cardDetected: false,
+        );
       });
     }
   }
@@ -185,11 +187,60 @@ class _CameraScreenState
       _photo = null;
       _result = null;
       _analyzing = false;
+      _reportId = null;
     });
 
     try {
       await _controller?.resumePreview();
     } catch (_) {}
+  }
+
+  Future<void> _continueToReport() async {
+    /*
+     * The button must never work before:
+     *
+     * 1. A photo exists
+     * 2. CV analysis has finished
+     * 3. We have a CV result
+     */
+    if (_photo == null ||
+        _result == null ||
+        _analyzing) {
+      return;
+    }
+
+    final reportId =
+        _reportId ??
+            'RPT-${DateTime.now().millisecondsSinceEpoch}';
+
+    final report = TestReport.fromCvResult(
+      result: _result!,
+      reportId: reportId,
+      generatedAt: DateTime.now(),
+      dateTime: widget.testDateTime ?? DateTime.now(),
+
+      testId: widget.testId,
+      operatorId: widget.operatorId,
+      testKit: widget.testKit,
+      suspectedSubstance: widget.suspectedSubstance,
+      reagents: widget.reagents,
+
+      latitude: widget.latitude,
+      longitude: widget.longitude,
+      gpsAccuracy: widget.gpsAccuracy,
+
+      originalImagePath: _photo!.path,
+    );
+
+    if (!mounted) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ReportScreen(
+          report: report,
+        ),
+      ),
+    );
   }
 
   @override
@@ -199,9 +250,7 @@ class _CameraScreenState
   }
 
   @override
-  Widget build(
-      BuildContext context,
-      ) {
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -213,18 +262,13 @@ class _CameraScreenState
       ),
       body: !_cameraReady
           ? const Center(
-        child:
-        CircularProgressIndicator(),
+        child: CircularProgressIndicator(),
       )
           : _photo == null
           ? _cameraView()
           : _resultView(),
     );
   }
-
-  // ---------------------------------------------------------------------------
-  // CAMERA
-  // ---------------------------------------------------------------------------
 
   Widget _cameraView() {
     return Stack(
@@ -235,42 +279,31 @@ class _CameraScreenState
           ),
         ),
 
-        /*
-         * Capture guidance.
-         */
         Positioned(
           top: 25,
           left: 20,
           right: 20,
           child: Container(
-            padding:
-            const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color:
-              Colors.black.withOpacity(
-                0.65,
-              ),
-              borderRadius:
-              BorderRadius.circular(12),
+              color: Colors.black.withOpacity(0.65),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: const Column(
               children: [
                 Text(
                   'PLACE REFERENCE CARD IN FRAME',
-                  textAlign:
-                  TextAlign.center,
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 15,
-                    fontWeight:
-                    FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 SizedBox(height: 5),
                 Text(
                   'Keep all 4 corner markers visible',
-                  textAlign:
-                  TextAlign.center,
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 12,
@@ -281,28 +314,16 @@ class _CameraScreenState
           ),
         ),
 
-        /*
-         * Centre guide.
-         */
         Center(
           child: Container(
-            width:
-            MediaQuery.of(context)
-                .size
-                .width *
-                0.78,
-            height:
-            MediaQuery.of(context)
-                .size
-                .height *
-                0.58,
+            width: MediaQuery.of(context).size.width * 0.78,
+            height: MediaQuery.of(context).size.height * 0.58,
             decoration: BoxDecoration(
               border: Border.all(
                 color: Colors.white,
                 width: 2,
               ),
-              borderRadius:
-              BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(12),
             ),
           ),
         ),
@@ -317,8 +338,7 @@ class _CameraScreenState
               child: Container(
                 width: 82,
                 height: 82,
-                decoration:
-                BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white,
                   border: Border.all(
@@ -339,10 +359,6 @@ class _CameraScreenState
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // RESULT
-  // ---------------------------------------------------------------------------
-
   Widget _resultView() {
     return Column(
       children: [
@@ -356,44 +372,85 @@ class _CameraScreenState
         _resultPanel(),
 
         Padding(
-          padding:
-          const EdgeInsets.fromLTRB(
+          padding: const EdgeInsets.fromLTRB(
             16,
             8,
             16,
-            20,
+            8,
           ),
-          child: SizedBox(
-            width: double.infinity,
-            child:
-            ElevatedButton.icon(
-              onPressed:
-              _analyzing
-                  ? null
-                  : _retake,
-              icon: const Icon(
-                Icons.camera_alt,
+          child: Column(
+            children: [
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed:
+                  (!_analyzing && _result != null)
+                      ? _continueToReport
+                      : null,
+                  icon: const Icon(
+                    Icons.description_outlined,
+                  ),
+                  label: const Text(
+                    'CONTINUE TO REPORT',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                    const Color(0xFF123B5D),
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor:
+                    Colors.grey.shade400,
+                    disabledForegroundColor:
+                    Colors.white70,
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                      BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
               ),
-              label: const Text(
-                'RETAKE PHOTO',
+
+              const SizedBox(height: 8),
+
+              SizedBox(
+                width: double.infinity,
+                height: 45,
+                child: OutlinedButton.icon(
+                  onPressed:
+                  _analyzing ? null : _retake,
+                  icon: const Icon(
+                    Icons.camera_alt,
+                  ),
+                  label: const Text(
+                    'RETAKE PHOTO',
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(
+                      color: Colors.white70,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                      BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ],
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // RESULT PANEL
-  // ---------------------------------------------------------------------------
-
   Widget _resultPanel() {
     if (_analyzing) {
       return Container(
         width: double.infinity,
-        padding:
-        const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20),
         color: Colors.white,
         child: const Column(
           children: [
@@ -403,15 +460,13 @@ class _CameraScreenState
               'ANALYZING IMAGE...',
               style: TextStyle(
                 fontSize: 17,
-                fontWeight:
-                FontWeight.bold,
+                fontWeight: FontWeight.bold,
               ),
             ),
             SizedBox(height: 5),
             Text(
               'Detecting reference card and analysing colour',
-              textAlign:
-              TextAlign.center,
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -441,8 +496,7 @@ class _CameraScreenState
 
     return Container(
       width: double.infinity,
-      padding:
-      const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       color: Colors.white,
       child: Column(
         crossAxisAlignment:
@@ -452,8 +506,7 @@ class _CameraScreenState
             'NARCOX CV ANALYSIS',
             style: TextStyle(
               fontSize: 12,
-              fontWeight:
-              FontWeight.bold,
+              fontWeight: FontWeight.bold,
               color: Colors.grey,
             ),
           ),
@@ -464,26 +517,20 @@ class _CameraScreenState
             children: [
               Container(
                 padding:
-                const EdgeInsets
-                    .symmetric(
+                const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 7,
                 ),
-                decoration:
-                BoxDecoration(
+                decoration: BoxDecoration(
                   color: statusColor,
                   borderRadius:
-                  BorderRadius.circular(
-                    8,
-                  ),
+                  BorderRadius.circular(8),
                 ),
                 child: Text(
                   result.status,
-                  style:
-                  const TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
-                    fontWeight:
-                    FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                     fontSize: 17,
                   ),
                 ),
@@ -496,8 +543,7 @@ class _CameraScreenState
                   'CARD DETECTED',
                   style: TextStyle(
                     color: Colors.green,
-                    fontWeight:
-                    FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
                 )
@@ -506,8 +552,7 @@ class _CameraScreenState
                   'CARD NOT DETECTED',
                   style: TextStyle(
                     color: Colors.red,
-                    fontWeight:
-                    FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
                 ),
@@ -521,8 +566,7 @@ class _CameraScreenState
               result.suspectedDrug!,
               style: const TextStyle(
                 fontSize: 23,
-                fontWeight:
-                FontWeight.bold,
+                fontWeight: FontWeight.bold,
               ),
             ),
 
@@ -548,8 +592,7 @@ class _CameraScreenState
               Expanded(
                 child: _metric(
                   'LAB Δ',
-                  result.distance
-                      .toStringAsFixed(2),
+                  result.distance.toStringAsFixed(2),
                 ),
               ),
               Expanded(
@@ -583,8 +626,7 @@ class _CameraScreenState
             style: TextStyle(
               fontSize: 11,
               color: Colors.grey,
-              fontStyle:
-              FontStyle.italic,
+              fontStyle: FontStyle.italic,
             ),
           ),
         ],
@@ -605,8 +647,7 @@ class _CameraScreenState
           style: const TextStyle(
             fontSize: 10,
             color: Colors.grey,
-            fontWeight:
-            FontWeight.bold,
+            fontWeight: FontWeight.bold,
           ),
         ),
         const SizedBox(height: 2),
@@ -614,8 +655,7 @@ class _CameraScreenState
           value,
           style: const TextStyle(
             fontSize: 15,
-            fontWeight:
-            FontWeight.bold,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ],

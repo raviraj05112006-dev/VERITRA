@@ -62,10 +62,24 @@ class _NewTestScreenState extends State<NewTestScreen> {
   void _confirmAndStart() {
     if (!_canStart) return;
 
+    final testId =
+        'NX-${DateTime.now().millisecondsSinceEpoch}';
+
+    final testKit = _selectedKit == 'Others'
+        ? _otherKitController.text.trim()
+        : _selectedKit;
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const FieldTestCompanionScreen(),
+        builder: (context) => FieldTestCompanionScreen(
+          testId: testId,
+          testKit: testKit,
+          latitude: _latitude,
+          longitude: _longitude,
+          gpsAccuracy: _accuracy,
+          testDateTime: DateTime.now(),
+        ),
       ),
     );
   }
