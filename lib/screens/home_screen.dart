@@ -4,6 +4,7 @@ import 'new_test_screen.dart';
 import 'test_log_screen.dart';
 import 'cases_screen.dart';
 import 'sync_center.dart';
+import 'report_screen_home.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -331,7 +332,14 @@ class _DashboardState extends State<Dashboard> {
                     Icons.description_outlined,
                     Icons.description_rounded,
                     'Reports',
-                    onTap: () => _soon('Reports'),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ReportsScreen(),
+                        ),
+                      );
+                    },
                   ),
                   _nav(
                     Icons.sync_rounded,
@@ -988,7 +996,14 @@ class _DashboardState extends State<Dashboard> {
         Icons.description_outlined,
         'Reports',
         'Field reports',
-            () => _soon('Reports'),
+            () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ReportsScreen(),
+            ),
+          );
+        },
       ),
       _Q(
         Icons.sync_rounded,
