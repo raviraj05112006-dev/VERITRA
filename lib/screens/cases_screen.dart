@@ -814,8 +814,12 @@ class _CasesScreenState extends State<CasesScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (_) {
         return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.88,
+          ),
           padding: const EdgeInsets.fromLTRB(
             20,
             12,
@@ -829,81 +833,83 @@ class _CasesScreenState extends State<CasesScreen> {
             ),
           ),
           child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: border,
-                      borderRadius:
-                      BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Test Details',
-                        style: TextStyle(
-                          color: text,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: border,
+                        borderRadius:
+                        BorderRadius.circular(10),
                       ),
                     ),
-                    _testResultSmall(
-                      test['result'],
-                    ),
-                  ],
-                ),
+                  ),
 
-                const SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
-                _detail(
-                  'Test ID',
-                  test['id'],
-                  Icons.science_outlined,
-                ),
-                _detail(
-                  'Case ID',
-                  test['caseId'],
-                  Icons.folder_open_outlined,
-                ),
-                _detail(
-                  'Result',
-                  test['result'],
-                  Icons.check_circle_outline_rounded,
-                ),
-                _detail(
-                  'Test Kit',
-                  test['kit'],
-                  Icons.inventory_2_outlined,
-                ),
-                _detail(
-                  'Date / Time',
-                  '${test['date']} • ${test['time']}',
-                  Icons.access_time_rounded,
-                ),
-                _detail(
-                  'Operator',
-                  test['operator'],
-                  Icons.person_outline_rounded,
-                ),
-                _detail(
-                  'Location',
-                  test['location'],
-                  Icons.location_on_outlined,
-                ),
-              ],
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Test Details',
+                          style: TextStyle(
+                            color: text,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      _testResultSmall(
+                        test['result'],
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  _detail(
+                    'Test ID',
+                    test['id'],
+                    Icons.science_outlined,
+                  ),
+                  _detail(
+                    'Case ID',
+                    test['caseId'],
+                    Icons.folder_open_outlined,
+                  ),
+                  _detail(
+                    'Result',
+                    test['result'],
+                    Icons.check_circle_outline_rounded,
+                  ),
+                  _detail(
+                    'Test Kit',
+                    test['kit'],
+                    Icons.inventory_2_outlined,
+                  ),
+                  _detail(
+                    'Date / Time',
+                    '${test['date']} • ${test['time']}',
+                    Icons.access_time_rounded,
+                  ),
+                  _detail(
+                    'Operator',
+                    test['operator'],
+                    Icons.person_outline_rounded,
+                  ),
+                  _detail(
+                    'Location',
+                    test['location'],
+                    Icons.location_on_outlined,
+                  ),
+                ],
+              ),
             ),
           ),
         );

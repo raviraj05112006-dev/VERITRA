@@ -469,8 +469,9 @@ class _SyncCenterScreenState extends State<SyncCenterScreen> {
                   ],
                 );
 
-                final buttons = Row(
-                  mainAxisSize: MainAxisSize.min,
+                final buttons = Wrap(
+                  spacing: 9,
+                  runSpacing: 9,
                   children: [
                     OutlinedButton.icon(
                       onPressed: _simulatePendingRecord,
@@ -486,7 +487,6 @@ class _SyncCenterScreenState extends State<SyncCenterScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 9),
                     ElevatedButton.icon(
                       onPressed:
                       _isSyncing ? null : _syncNow,
@@ -599,6 +599,7 @@ class _SyncCenterScreenState extends State<SyncCenterScreen> {
         ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 40,
@@ -621,6 +622,8 @@ class _SyncCenterScreenState extends State<SyncCenterScreen> {
               children: [
                 Text(
                   record.testId,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -630,24 +633,36 @@ class _SyncCenterScreenState extends State<SyncCenterScreen> {
                 const SizedBox(height: 4),
                 Text(
                   '${record.caseId} • ${record.sampleId} • Evidence record',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 10,
                     color: Color(0xFF8A96A2),
                   ),
                 ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment:
+                  WrapCrossAlignment.center,
+                  children: [
+                    _statusBadge(record.status),
+                    if (isSynced)
+                      Text(
+                        record.integrity,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Color(0xFF8996A3),
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
           ),
-          _statusBadge(record.status),
-          const SizedBox(width: 12),
-          if (isSynced)
-            Text(
-              record.integrity,
-              style: const TextStyle(
-                fontSize: 10,
-                color: Color(0xFF8996A3),
-              ),
-            ),
         ],
       ),
     );
